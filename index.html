@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Trip Fuel Cost</title>
+  <meta name="description" content="Enter where you are and where you're going — get the fuel cost of the journey.">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <style>
+    :root {
+      --bg: #f4f6f5; --card: #ffffff; --text: #14201d; --muted: #5d6b67;
+      --line: #dde3e1; --accent: #0f766e; --accent-ink: #ffffff; --soft: #e6f2f0;
+      --danger: #b42318;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0e1513; --card: #17211e; --text: #e8eeec; --muted: #94a39f;
+        --line: #2a3632; --accent: #2dd4bf; --accent-ink: #062320; --soft: #12302b; --danger: #f97066; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 560px; margin: 0 auto;
+      padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 1.35rem; margin: 4px 0 16px; letter-spacing: -0.01em; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+    .field { position: relative; margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; min-width: 0; }
+    input, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 48px; }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    button { font: inherit; border: 0; border-radius: 12px; min-height: 48px; cursor: pointer; }
+    .btn-primary { width: 100%; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 1.05rem; }
+    .btn-primary:disabled { opacity: .5; }
+    .btn-ghost { background: var(--soft); color: var(--accent); font-weight: 600; padding: 0 14px; flex: 0 0 auto; }
+    .swap { display: flex; justify-content: center; margin: -6px 0 8px; }
+    .swap button { min-height: 36px; padding: 0 14px; background: transparent; color: var(--accent); font-weight: 600; }
+    .suggest { position: absolute; z-index: 1000; left: 0; right: 0; top: 100%; margin-top: 4px; list-style: none; padding: 4px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+    .suggest:empty { display: none; }
+    .suggest li { padding: 10px; border-radius: 8px; cursor: pointer; }
+    .suggest li:hover, .suggest li[aria-selected="true"] { background: var(--soft); }
+    .suggest small { display: block; color: var(--muted); }
+    .toggle { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
+    .toggle span { font-weight: 600; }
+    .toggle input { width: 52px; min-height: 0; height: 28px; accent-color: var(--accent); }
+    details summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+    details summary::after { content: "Edit"; color: var(--accent); }
+    details[open] summary::after { content: "Done"; }
+    details[open] summary { margin-bottom: 14px; }
+    .summary-line { color: var(--muted); font-weight: 400; font-size: .9rem; }
+    .result { text-align: center; }
+    .result .big { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.02em; color: var(--accent); margin: 4px 0; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .stats div { background: var(--soft); border-radius: 12px; padding: 10px 6px; }
+    .stats b { display: block; font-size: 1.05rem; }
+    .stats small { color: var(--muted); }
+    #map { height: 260px; border-radius: 16px; border: 1px solid var(--line); margin-bottom: 12px; }
+    .error { color: var(--danger); font-weight: 600; margin: 8px 0 0; }
+    .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
+    [hidden] { display: none !important; }
+    footer { color: var(--muted); font-size: .75rem; text-align: center; margin-top: 16px; }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>⛽ Trip Fuel Cost</h1>
+
+  <form id="trip" class="card" autocomplete="off">
+    <div class="field">
+      <label for="from">From</label>
+      <div class="row">
+        <input id="from" placeholder="Search a place or address" enterkeyhint="next">
+        <button type="button" id="locate" class="btn-ghost" aria-label="Use my current location">📍 Me</button>
+      </div>
+      <ul class="suggest" id="from-list" role="listbox"></ul>
+    </div>
+    <div class="swap"><button type="button" id="swap" aria-label="Swap from and to">⇅ Swap</button></div>
+    <div class="field">
+      <label for="to">To</label>
+      <input id="to" placeholder="Where are you going?" enterkeyhint="go">
+      <ul class="suggest" id="to-list" role="listbox"></ul>
+    </div>
+    <div class="field toggle">
+      <span>Round trip</span>
+      <input type="checkbox" id="roundtrip">
+    </div>
+    <button type="submit" class="btn-primary" id="go">Get journey price</button>
+    <p class="error" id="error" hidden></p>
+  </form>
+
+  <section id="result" hidden>
+    <div class="card result">
+      <div class="summary-line" id="r-route"></div>
+      <div class="big" id="r-cost">€0.00</div>
+      <div class="summary-line" id="r-split"></div>
+      <div class="stats">
+        <div><b id="r-dist">–</b><small>distance</small></div>
+        <div><b id="r-time">–</b><small>drive time</small></div>
+        <div><b id="r-fuel">–</b><small id="r-fuel-label">fuel</small></div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </section>
+
+  <details class="card" id="settings">
+    <summary><span>Car &amp; price <span class="summary-line" id="settings-summary"></span></span></summary>
+    <div class="field">
+      <label for="fuel">Fuel type</label>
+      <select id="fuel">
+        <option value="e10">Petrol (Euro 95 / E10)</option>
+        <option value="e98">Petrol (Super 98)</option>
+        <option value="diesel">Diesel</option>
+        <option value="lpg">LPG</option>
+        <option value="ev">Electric</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="price" id="price-label">Price €/L</label>
+        <input id="price" type="number" inputmode="decimal" step="0.001" min="0">
+      </div>
+      <div class="field">
+        <label for="usage" id="usage-label">L / 100 km</label>
+        <input id="usage" type="number" inputmode="decimal" step="0.1" min="0">
+      </div>
+    </div>
+    <div class="field">
+      <label for="people">Split between (people)</label>
+      <input id="people" type="number" inputmode="numeric" min="1" step="1">
+    </div>
+    <p class="hint">Check today's pump price on your fuel app or at the station and type it here. Your settings are saved on this phone.</p>
+  </details>
+
+  <footer>
+    Search &amp; map © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ·
+    Geocoding by <a href="https://photon.komoot.io">Photon</a> · Routing by <a href="https://project-osrm.org">OSRM</a>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
