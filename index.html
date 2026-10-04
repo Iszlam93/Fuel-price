@@ -93,6 +93,10 @@
       <span>Round trip</span>
       <input type="checkbox" id="roundtrip">
     </div>
+    <div class="field">
+      <label for="parking">Parking € (optional)</label>
+      <input id="parking" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
+    </div>
     <button type="submit" class="btn-primary" id="go">Get journey price</button>
     <p class="error" id="error" hidden></p>
   </form>
@@ -101,6 +105,7 @@
     <div class="card result">
       <div class="summary-line" id="r-route"></div>
       <div class="big" id="r-cost">€0.00</div>
+      <div class="summary-line" id="r-breakdown"></div>
       <div class="summary-line" id="r-split"></div>
       <div class="stats">
         <div><b id="r-dist">–</b><small>distance</small></div>

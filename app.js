@@ -5,7 +5,7 @@ const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
 // Rough Dutch pump averages; the user overrides these with today's price.
 const FUELS = {
-  e10:    { price: 1.95, usage: 6.5, unit: 'L' },
+  e10:    { price: 2.34, usage: 6.5, unit: 'L' },
   e98:    { price: 2.10, usage: 6.8, unit: 'L' },
   diesel: { price: 1.75, usage: 5.5, unit: 'L' },
   lpg:    { price: 0.85, usage: 8.5, unit: 'L' },
@@ -57,6 +57,8 @@ $('fuel').addEventListener('change', () => {
 });
 ['price', 'usage', 'people', 'roundtrip'].forEach((id) =>
   $(id).addEventListener('change', () => { saveSettings(); if (!$('result').hidden) calculate(); }));
+// Parking is per journey, so it isn't saved; just refresh the total as it's typed.
+$('parking').addEventListener('input', () => { if (lastRoute) render(lastRoute, false); });
 
 // ---------- place search with autocomplete ----------
 
@@ -175,7 +177,7 @@ $('swap').addEventListener('click', () => {
 
 // ---------- route + cost ----------
 
-let map, routeLayer;
+let map, routeLayer, lastRoute;
 
 async function calculate() {
   hideError();
@@ -200,18 +202,23 @@ async function calculate() {
   }
 }
 
-function render(route) {
+function render(route, scroll = true) {
+  lastRoute = route;
   const legs = $('roundtrip').checked ? 2 : 1;
   const km = (route.distance / 1000) * legs;
   const minutes = (route.duration / 60) * legs;
   const fuel = FUELS[$('fuel').value];
   const used = (km * (+$('usage').value || 0)) / 100;
   const cost = used * (+$('price').value || 0);
+  const parking = Math.max(0, parseFloat(String($('parking').value).replace(',', '.')) || 0);
+  const total = cost + parking;
   const people = Math.max(1, +$('people').value || 1);
 
   $('r-route').textContent = `${state.from.name} → ${state.to.name}${legs === 2 ? ' → back' : ''}`;
-  $('r-cost').textContent = eur.format(cost);
-  $('r-split').textContent = people > 1 ? `${eur.format(cost / people)} each for ${people} people` : '';
+  $('r-cost').textContent = eur.format(total);
+  $('r-breakdown').textContent = parking > 0
+    ? `${fuel.unit === 'kWh' ? 'Charging' : 'Fuel'} ${eur.format(cost)} + parking ${eur.format(parking)}` : '';
+  $('r-split').textContent = people > 1 ? `${eur.format(total / people)} each for ${people} people` : '';
   $('r-dist').textContent = `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
   $('r-time').textContent = minutes < 60 ? `${Math.round(minutes)} min`
     : `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, '0')}`;
@@ -219,6 +226,7 @@ function render(route) {
   $('r-fuel-label').textContent = fuel.unit === 'kWh' ? 'energy' : 'fuel';
   $('result').hidden = false;
 
+  if (!scroll) return;
   if (window.L) {
     if (!map) {
       map = L.map('map', { zoomControl: false, attributionControl: true });
