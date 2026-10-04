@@ -26,7 +26,12 @@
       font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     main { max-width: 560px; margin: 0 auto;
       padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
-    h1 { font-size: 1.35rem; margin: 4px 0 16px; letter-spacing: -0.01em; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 16px; }
+    h1 { font-size: 1.35rem; margin: 0; letter-spacing: -0.01em; }
+    .top .btn-ghost { min-height: 40px; }
+    .share-trip { width: 100%; margin-top: 12px; }
+    .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+      background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; z-index: 2000; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
     label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
     .field { position: relative; margin-bottom: 14px; }
@@ -72,7 +77,10 @@
 </head>
 <body>
 <main>
-  <h1>⛽ Trip Fuel Cost</h1>
+  <header class="top">
+    <h1>⛽ Trip Fuel Cost</h1>
+    <button type="button" id="share-app" class="btn-ghost">↗ Share app</button>
+  </header>
 
   <form id="trip" class="card" autocomplete="off">
     <div class="field">
@@ -112,6 +120,7 @@
         <div><b id="r-time">–</b><small>drive time</small></div>
         <div><b id="r-fuel">–</b><small id="r-fuel-label">fuel</small></div>
       </div>
+      <button type="button" id="share-trip" class="btn-ghost share-trip">↗ Share this journey</button>
     </div>
     <div id="map"></div>
   </section>
@@ -152,6 +161,7 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js"></script>
+<div class="toast" id="toast" hidden></div>
+<script src="app.js?v=3"></script>
 </body>
 </html>

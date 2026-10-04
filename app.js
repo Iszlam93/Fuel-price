@@ -24,16 +24,20 @@ function loadSettings() {
   try { s = JSON.parse(localStorage.getItem('tfc-settings') || '{}'); } catch {}
   const fuel = FUELS[s.fuel] ? s.fuel : 'e10';
   $('fuel').value = fuel;
-  $('price').value = s.price ?? FUELS[fuel].price;
+  // Only a price the user typed themselves sticks; otherwise follow the current default.
+  priceCustom = !!s.priceCustom;
+  $('price').value = priceCustom ? s.price : FUELS[fuel].price;
   $('usage').value = s.usage ?? FUELS[fuel].usage;
   $('people').value = s.people ?? 1;
   $('roundtrip').checked = !!s.roundtrip;
   applyUnits();
 }
 
+let priceCustom = false;
+
 function saveSettings() {
   const s = {
-    fuel: $('fuel').value, price: +$('price').value, usage: +$('usage').value,
+    fuel: $('fuel').value, price: +$('price').value, priceCustom, usage: +$('usage').value,
     people: Math.max(1, +$('people').value || 1), roundtrip: $('roundtrip').checked,
   };
   try { localStorage.setItem('tfc-settings', JSON.stringify(s)); } catch {}
@@ -52,9 +56,11 @@ $('fuel').addEventListener('change', () => {
   const f = FUELS[$('fuel').value];
   $('price').value = f.price;
   $('usage').value = f.usage;
+  priceCustom = false;
   saveSettings();
   if (!$('result').hidden) calculate();
 });
+$('price').addEventListener('input', () => { priceCustom = true; });
 ['price', 'usage', 'people', 'roundtrip'].forEach((id) =>
   $(id).addEventListener('change', () => { saveSettings(); if (!$('result').hidden) calculate(); }));
 // Parking is per journey, so it isn't saved; just refresh the total as it's typed.
@@ -248,6 +254,57 @@ function render(route, scroll = true) {
   $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ---------- sharing ----------
+
+const APP_URL = location.origin + location.pathname;
+const placeParam = (p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)},${p.name}`;
+
+async function share(title, text, url) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('Link copied — paste it to your friends'); }
+  catch { prompt('Copy this link:', url); }
+}
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 2500);
+}
+
+$('share-app').addEventListener('click', () =>
+  share('Trip Fuel Cost', 'Check what a car journey costs in fuel and parking:', APP_URL));
+
+$('share-trip').addEventListener('click', () => {
+  if (!state.from || !state.to) return;
+  const q = new URLSearchParams({ from: placeParam(state.from), to: placeParam(state.to) });
+  if ($('roundtrip').checked) q.set('rt', '1');
+  if (+$('parking').value > 0) q.set('park', $('parking').value);
+  share('Trip Fuel Cost', `${$('r-route').textContent}: ${$('r-cost').textContent}`, `${APP_URL}?${q}`);
+});
+
+// Open a shared journey link: ?from=lat,lon,name&to=lat,lon,name[&rt=1][&park=12.5]
+function loadFromLink() {
+  const q = new URLSearchParams(location.search);
+  const parse = (v) => {
+    const [lat, lon, ...name] = (v || '').split(',');
+    if (isNaN(+lat) || isNaN(+lon) || lat === '' || lon === '') return null;
+    const n = name.join(',') || 'Pinned place';
+    return { lat: +lat, lon: +lon, name: n, label: n };
+  };
+  const from = parse(q.get('from')), to = parse(q.get('to'));
+  if (!from || !to) return;
+  state.from = from; state.to = to;
+  $('from').value = from.label; $('to').value = to.label;
+  if (q.has('rt')) $('roundtrip').checked = q.get('rt') === '1';
+  if (q.has('park')) $('parking').value = q.get('park');
+  calculate();
+}
+
 function showError(msg) { $('error').textContent = msg; $('error').hidden = false; }
 function hideError() { $('error').hidden = true; }
 
@@ -256,6 +313,7 @@ $('trip').addEventListener('submit', (e) => { e.preventDefault(); calculate(); }
 setupAutocomplete('from');
 setupAutocomplete('to');
 loadSettings();
+loadFromLink();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
